@@ -43,33 +43,39 @@ class DeflaterInflaterStreamTest {
   @Test
   def read_writh_with_buf = {
 
-    (1 to 100 by 3).foreach { i =>
+    List(true, false).foreach { wrapped =>
+      (1 to 100 by 3).foreach { i =>
 
-      val buf = new Array[Byte](i)
+        val buf = new Array[Byte](i)
 
-      val data1 = randombuf(10240)
+        val data1 = randombuf(10240)
 
-      val baos = new ByteArrayOutputStream
-      val gos = new DeflaterOutputStream(baos)
+        val baos = new ByteArrayOutputStream
+        val gos = new DeflaterOutputStream(baos,
+                                           new Deflater(JZlib.Z_DEFAULT_COMPRESSION,
+                                                      JZlib.DEF_WBITS,
+                                                      wrapped))
+        val datai = new ByteArrayInputStream(data1)
+        Stream.continually(datai.read(buf)).
+                          takeWhile(-1 !=).foreach(i => gos.write(buf, 0, i))
+        gos.close
+        datai.close
 
-      val datai = new ByteArrayInputStream(data1)
-      Stream.continually(datai.read(buf)).
-                        takeWhile(-1 !=).foreach(i => gos.write(buf, 0, i))
-      gos.close
-      datai.close
+        val bais = new ByteArrayInputStream(baos.toByteArray)
+        val gis = new InflaterInputStream(bais,
+                                          new Inflater(JZlib.DEF_WBITS,
+                                                       wrapped))
 
-      val bais = new ByteArrayInputStream(baos.toByteArray)
-      val gis = new InflaterInputStream(bais)
+        val baos2 = new ByteArrayOutputStream
 
-      val baos2 = new ByteArrayOutputStream
+        Stream.continually(gis.read(buf)).
+                          takeWhile(-1 !=).foreach(i => baos2.write(buf, 0, i))
 
-      Stream.continually(gis.read(buf)).
-                        takeWhile(-1 !=).foreach(i => baos2.write(buf, 0, i))
+        val data2 = baos2.toByteArray
 
-      val data2 = baos2.toByteArray
-
-      assertThat(data2.length, is(data1.length))
-      assertThat(data2, is(data1))
+        assertThat(data2.length, is(data1.length))
+        assertThat(data2, is(data1))
+      }
     }
   }
 
